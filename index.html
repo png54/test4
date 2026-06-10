@@ -36,7 +36,6 @@
             font-family: 'Inter', sans-serif;
             direction: ltr;
         }
-        body.en .rtl-text, body.fr .rtl-text { direction: ltr; }
         
         /* Loading Screen */
         #loading {
@@ -509,7 +508,6 @@
         .hidden { display: none !important; }
         .mt-2 { margin-top: 20px; }
         .mb-2 { margin-bottom: 20px; }
-        .gap-1 { gap: 8px; }
         .flex { display: flex; gap: 12px; flex-wrap: wrap; }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Cairo:wght@300;400;500;600;700;800;900&family=Tajawal&display=swap" rel="stylesheet">
@@ -570,7 +568,7 @@
 
     <script>
         // =============================================
-        // CONFIGURATION - ضع رابط Google Apps Script هنا
+        // GOOGLE APPS SCRIPT URL - رابط السكريبت الخاص بك
         // =============================================
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwP2dqSWN8aQVOS8av4u1e1nXClo8zqAprbAMoKHP35I4tR7YxRSAcQcMhhBwTLKdYP/exec';
         
@@ -631,7 +629,7 @@
         let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
         let currentPage = 'home';
         
-        // Wilayas
+        // Wilayas (ولايات الجزائر)
         const wilayas = [
             '01 - أدرار', '02 - الشلف', '03 - الأغواط', '04 - أم البواقي', '05 - باتنة',
             '06 - بجاية', '07 - بسكرة', '08 - بشار', '09 - البليدة', '10 - البويرة',
@@ -676,7 +674,7 @@
             document.querySelectorAll('[data-key]').forEach(el => {
                 const key = el.getAttribute('data-key');
                 if (el.tagName === 'INPUT' && el.placeholder) el.placeholder = t(key);
-                else el.textContent = t(key);
+                else if (el.tagName !== 'INPUT') el.textContent = t(key);
             });
             document.querySelectorAll('.lang-btn').forEach(btn => {
                 btn.classList.remove('active');
@@ -718,7 +716,7 @@
         function closeModal() { document.getElementById('modalContainer').innerHTML = ''; }
         
         // =============================================
-        // API CALLS
+        // API CALLS - متصل بـ Google Sheets مباشرة
         // =============================================
         async function apiCall(action, data = {}) {
             try {
@@ -729,24 +727,10 @@
                     body: JSON.stringify({ action, ...data })
                 });
                 const result = await response.json();
+                console.log(`API [${action}]:`, result);
                 return result;
             } catch (error) {
                 console.error('API Error:', error);
-                // بيانات تجريبية في حالة فشل الاتصال
-                if (action === 'getAllProducts') {
-                    return {
-                        success: true,
-                        data: [
-                            { ProductID: '1', Name: 'سترة أنيقة', Type: 'Clothes', Description: 'سترة فاخرة', OldPrice: '8500', NewPrice: '6200', Stock: '15', Sizes: 'S,M,L,XL', Colors: 'أسود,أبيض', Images: 'https://picsum.photos/id/20/600/800', MainImage: 'https://picsum.photos/id/20/600/800', Visible: 'true', Featured: 'true', BestSeller: 'true', CreatedAt: '2026-06-01', UpdatedAt: '2026-06-10' },
-                            { ProductID: '2', Name: 'حذاء رياضي', Type: 'Shoes', Description: 'حذاء مريح', OldPrice: '12000', NewPrice: '8900', Stock: '8', Sizes: '38,39,40,41,42', Colors: 'أسود', Images: 'https://picsum.photos/id/26/600/800', MainImage: 'https://picsum.photos/id/26/600/800', Visible: 'true', Featured: 'true', BestSeller: 'false', CreatedAt: '2026-06-05', UpdatedAt: '2026-06-10' }
-                        ]
-                    };
-                }
-                if (action === 'login' && data.email === 'admin@dzyn.com' && data.password === 'admin123') {
-                    return { success: true, data: { ID: '1', FullName: 'Admin', Email: 'admin@dzyn.com', Role: 'admin', Status: 'active' } };
-                }
-                if (action === 'register') return { success: true, data: { ID: '99', FullName: data.fullName, Email: data.email, Role: 'user' } };
-                if (action === 'getSettings') return { success: true, data: { StoreName: 'DZYN', StorePhone: '+213555555555', StoreEmail: 'contact@dzyn.com' } };
                 return { success: false, error: 'فشل الاتصال بالخادم' };
             }
         }
@@ -913,7 +897,7 @@
                     <div class="product-img">
                         <img src="${imgUrl}" alt="${product.Name}" onerror="this.src='https://picsum.photos/400/500'">
                         <button class="fav-icon ${isLiked ? 'liked' : ''}" onclick="event.stopPropagation(); toggleFavorite('${product.ProductID}')">${isLiked ? '❤️' : '🤍'}</button>
-                        ${outOfStock ? '<div style="position:absolute;bottom:10px;left:10px;background:red;color:white;padding:4px12px;border-radius:20px;font-size:12px;">نفد</div>' : ''}
+                        ${outOfStock ? '<div style="position:absolute;bottom:10px;right:10px;background:red;color:white;padding:4px 12px;border-radius:20px;font-size:12px;">نفد</div>' : ''}
                     </div>
                     <div class="product-info">
                         <div class="product-name">${product.Name}</div>
@@ -940,10 +924,11 @@
             
             showLoading();
             
-            // Load products
+            // Load products from Google Sheets
             const productsResult = await apiCall('getAllProducts');
             if (productsResult.success) allProducts = productsResult.data;
             
+            // Load settings from Google Sheets
             const settingsResult = await apiCall('getSettings');
             const settings = settingsResult.success ? settingsResult.data : {};
             
@@ -970,7 +955,7 @@
                     renderHome(main, settings);
             }
             
-            // Update footer
+            // Update footer with settings from Google Sheets
             if (settings.StorePhone) document.getElementById('footerPhone').textContent = settings.StorePhone;
             if (settings.StoreEmail) document.getElementById('footerEmail').textContent = settings.StoreEmail;
         }
@@ -1086,7 +1071,7 @@
             const isLiked = favorites.includes(product.ProductID);
             const outOfStock = parseInt(product.Stock) <= 0;
             
-            // Get reviews
+            // Get reviews from Google Sheets
             const reviewsResult = await apiCall('getReviews', { productId });
             const reviews = reviewsResult.success ? reviewsResult.data : [];
             const avgRating = reviews.length ? (reviews.reduce((s,r) => s + parseInt(r.Rating),0) / reviews.length).toFixed(1) : '0';
@@ -1220,11 +1205,9 @@
         async function renderAdmin(main) {
             const usersResult = await apiCall('getUsers');
             const ordersResult = await apiCall('getOrders');
-            const notificationsResult = await apiCall('getNotifications');
             
             const users = usersResult.success ? usersResult.data : [];
             const orders = ordersResult.success ? ordersResult.data : [];
-            const notifications = notificationsResult.success ? notificationsResult.data : [];
             const totalSales = orders.reduce((sum, o) => sum + (parseInt(o.Price) || 0), 0);
             const outOfStock = allProducts.filter(p => parseInt(p.Stock) <= 0).length;
             
@@ -1236,8 +1219,6 @@
                             <a onclick="switchAdminTab('products')">📦 المنتجات</a>
                             <a onclick="switchAdminTab('orders')">📋 الطلبات</a>
                             <a onclick="switchAdminTab('users')">👥 المستخدمين</a>
-                            <a onclick="switchAdminTab('reviews')">⭐ التقييمات</a>
-                            <a onclick="switchAdminTab('notifications')">🔔 الإشعارات</a>
                         </div>
                         <div class="admin-main" id="adminContent">
                             <div class="stats-grid">
@@ -1249,10 +1230,10 @@
                                 <div class="stat-card"><div class="stat-number">${parseInt(totalSales).toLocaleString()}</div><div>إجمالي المبيعات DZD</div></div>
                             </div>
                             <h3>آخر الطلبات</h3>
-                            <table>
+                             <table>
                                 <thead><tr><th>رقم الطلب</th><th>المنتج</th><th>العميل</th><th>السعر</th><th>الحالة</th></tr></thead>
                                 <tbody>${orders.slice(0,5).map(o => `<tr><td>${o.OrderID}</td><td>${o.ProductName}</td><td>${o.FullName}</td><td>${parseInt(o.Price).toLocaleString()}</td><td>${o.Status}</td></tr>`).join('')}</tbody>
-                            </table>
+                             </table>
                         </div>
                     </div>
                 </div>
@@ -1267,46 +1248,67 @@
                 content.innerHTML = `
                     <h3>المنتجات</h3>
                     <button class="btn btn-primary btn-sm mb-2" onclick="addNewProduct()">+ إضافة منتج</button>
-                    <table>
-                        <thead><tr><th>ID</th><th>الاسم</th><th>النوع</th><th>السعر</th><th>المخزون</th><th>ظاهر</th><th>إجراءات</th></tr></thead>
-                        <tbody>${allProducts.map(p => `
-                            <tr>
-                                <td>${p.ProductID}</td>
-                                <td>${p.Name}</td>
-                                <td>${p.Type}</td>
-                                <td>${parseInt(p.NewPrice).toLocaleString()} DZD</td>
-                                <td style="color:${parseInt(p.Stock)<=0?'red':'green'}">${p.Stock}</td>
-                                <td>${p.Visible === 'true' ? '✅' : '❌'}</td>
-                                <td>
-                                    <button class="btn btn-outline btn-sm" onclick="toggleProductVisibility('${p.ProductID}')">${p.Visible === 'true' ? 'إخفاء' : 'إظهار'}</button>
-                                    <button class="btn btn-danger btn-sm" onclick="deleteProductById('${p.ProductID}')">حذف</button>
-                                </td>
-                            </tr>
-                        `).join('')}</tbody>
-                    </table>
+                    <div style="overflow-x:auto;">
+                        <table>
+                            <thead><tr><th>ID</th><th>الاسم</th><th>النوع</th><th>السعر</th><th>المخزون</th><th>ظاهر</th><th>إجراءات</th></tr></thead>
+                            <tbody>${allProducts.map(p => `
+                                <tr>
+                                    <td>${p.ProductID}</td>
+                                    <td>${p.Name}</td>
+                                    <td>${p.Type}</td>
+                                    <td>${parseInt(p.NewPrice).toLocaleString()} DZD</td>
+                                    <td style="color:${parseInt(p.Stock)<=0?'red':'green'}">${p.Stock}</td>
+                                    <td>${p.Visible === 'true' ? '✅' : '❌'}</td>
+                                    <td>
+                                        <button class="btn btn-outline" style="padding:6px 12px;font-size:12px;" onclick="toggleProductVisibility('${p.ProductID}')">${p.Visible === 'true' ? 'إخفاء' : 'إظهار'}</button>
+                                        <button class="btn btn-outline" style="padding:6px 12px;font-size:12px;background:#dc2626;color:white;" onclick="deleteProductById('${p.ProductID}')">حذف</button>
+                                    </td>
+                                </tr>
+                            `).join('')}</tbody>
+                        </table>
+                    </div>
                 `;
             } else if (tab === 'orders') {
                 const ordersResult = await apiCall('getOrders');
                 const orders = ordersResult.success ? ordersResult.data : [];
                 content.innerHTML = `
                     <h3>الطلبات</h3>
-                    <table>
-                        <thead><tr><th>رقم الطلب</th><th>المنتج</th><th>العميل</th><th>الهاتف</th><th>السعر</th><th>الحالة</th></tr></thead>
-                        <tbody>${orders.map(o => `<tr><td>${o.OrderID}</td><td>${o.ProductName}</td><td>${o.FullName}</td><td>${o.Phone}</td><td>${parseInt(o.Price).toLocaleString()}</td><td>${o.Status}</td></tr>`).join('')}</tbody>
-                    </table>
+                    <div style="overflow-x:auto;">
+                        <table>
+                            <thead><tr><th>رقم الطلب</th><th>المنتج</th><th>العميل</th><th>الهاتف</th><th>السعر</th><th>الحالة</th></tr></thead>
+                            <tbody>${orders.map(o => `<tr><td>${o.OrderID}</td><td>${o.ProductName}</td><td>${o.FullName}</td><td>${o.Phone}</td><td>${parseInt(o.Price).toLocaleString()}</td><td>${o.Status}</td></tr>`).join('')}</tbody>
+                        </table>
+                    </div>
                 `;
             } else if (tab === 'users') {
                 const usersResult = await apiCall('getUsers');
                 const users = usersResult.success ? usersResult.data : [];
                 content.innerHTML = `
                     <h3>المستخدمين</h3>
-                    <table>
-                        <thead><tr><th>ID</th><th>الاسم</th><th>البريد</th><th>الدور</th><th>الحالة</th></tr></thead>
-                        <tbody>${users.map(u => `<tr><td>${u.ID}</td><td>${u.FullName}</td><td>${u.Email}</td><td>${u.Role}</td><td>${u.Status}</td></tr>`).join('')}</tbody>
-                    </table>
+                    <div style="overflow-x:auto;">
+                        <table>
+                            <thead><tr><th>ID</th><th>الاسم</th><th>البريد</th><th>الدور</th><th>الحالة</th></tr></thead>
+                            <tbody>${users.map(u => `<tr><td>${u.ID}</td><td>${u.FullName}</td><td>${u.Email}</td><td>${u.Role}</td><td>${u.Status}</td></tr>`).join('')}</tbody>
+                        </table>
+                    </div>
                 `;
             } else {
-                content.innerHTML = `<div class="stats-grid">...</div>`;
+                const usersResult = await apiCall('getUsers');
+                const ordersResult = await apiCall('getOrders');
+                const users = usersResult.success ? usersResult.data : [];
+                const orders = ordersResult.success ? ordersResult.data : [];
+                const totalSales = orders.reduce((sum, o) => sum + (parseInt(o.Price) || 0), 0);
+                const outOfStock = allProducts.filter(p => parseInt(p.Stock) <= 0).length;
+                content.innerHTML = `
+                    <div class="stats-grid">
+                        <div class="stat-card"><div class="stat-number">${users.length}</div><div>المستخدمين</div></div>
+                        <div class="stat-card"><div class="stat-number">${allProducts.length}</div><div>المنتجات</div></div>
+                        <div class="stat-card"><div class="stat-number">${orders.length}</div><div>الطلبات</div></div>
+                        <div class="stat-card"><div class="stat-number">${orders.filter(o=>o.Status==='Pending').length}</div><div>طلبات جديدة</div></div>
+                        <div class="stat-card"><div class="stat-number">${outOfStock}</div><div>منتجات نافدة</div></div>
+                        <div class="stat-card"><div class="stat-number">${parseInt(totalSales).toLocaleString()}</div><div>إجمالي المبيعات DZD</div></div>
+                    </div>
+                `;
             }
         };
         
@@ -1332,9 +1334,11 @@
         window.addNewProduct = function() {
             const newId = 'P' + Date.now();
             allProducts.unshift({
-                ProductID: newId, Name: 'منتج جديد', Type: 'Clothes',
-                NewPrice: '0', Stock: '10', Visible: 'true',
-                CreatedAt: new Date().toISOString().split('T')[0]
+                ProductID: newId, Name: 'منتج جديد', Type: 'Clothes', Description: '',
+                OldPrice: '0', NewPrice: '0', Stock: '10', Sizes: 'S,M,L', Colors: 'أسود',
+                Images: 'https://picsum.photos/400/500', MainImage: 'https://picsum.photos/400/500',
+                Visible: 'true', Featured: 'false', BestSeller: 'false',
+                CreatedAt: new Date().toISOString().split('T')[0], UpdatedAt: new Date().toISOString().split('T')[0]
             });
             renderPage();
             showToast('تمت الإضافة، عدل البيانات في Google Sheets', 'info');
@@ -1349,6 +1353,7 @@
             document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
             document.documentElement.lang = currentLang;
             
+            // Load products from Google Sheets
             const productsResult = await apiCall('getAllProducts');
             if (productsResult.success) allProducts = productsResult.data;
             

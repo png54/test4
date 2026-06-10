@@ -1,0 +1,720 @@
+// =============================================
+// GOOGLE APPS SCRIPT URL - ضع رابط السكريبت الخاص بك هنا
+// =============================================
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwP2dqSWN8aQVOS8av4u1e1nXClo8zqAprbAMoKHP35I4tR7YxRSAcQcMhhBwTLKdYP/exec';
+
+// =============================================
+// STATE
+// =============================================
+let currentLang = localStorage.getItem('lang') || 'ar';
+let currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+let allProducts = [];
+let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+let currentPage = 'home';
+
+// ولايات الجزائر
+const wilayas = [
+    '01 - أدرار', '02 - الشلف', '03 - الأغواط', '04 - أم البواقي', '05 - باتنة',
+    '06 - بجاية', '07 - بسكرة', '08 - بشار', '09 - البليدة', '10 - البويرة',
+    '11 - تمنراست', '12 - تبسة', '13 - تلمسان', '14 - تيارت', '15 - تيزي وزو',
+    '16 - الجزائر', '17 - الجلفة', '18 - جيجل', '19 - سطيف', '20 - سعيدة',
+    '21 - سكيكدة', '22 - سيدي بلعباس', '23 - عنابة', '24 - قالمة', '25 - قسنطينة',
+    '26 - المدية', '27 - مستغانم', '28 - المسيلة', '29 - معسكر', '30 - ورقلة',
+    '31 - وهران', '32 - البيض', '33 - إليزي', '34 - برج بوعريريج', '35 - بومرداس',
+    '36 - الطارف', '37 - تندوف', '38 - تيسمسيلت', '39 - الوادي', '40 - خنشلة',
+    '41 - سوق أهراس', '42 - تيبازة', '43 - ميلة', '44 - عين الدفلى', '45 - النعامة',
+    '46 - عين تموشنت', '47 - غرداية', '48 - غليزان', '49 - المغير', '50 - المنيعة'
+];
+
+// الترجمات
+const translations = {
+    ar: {
+        home: 'الرئيسية', products: 'المنتجات', clothes: 'ملابس', shoes: 'أحذية',
+        admin: 'المدير', account: 'حسابي', logout: 'تسجيل خروج',
+        login: 'تسجيل دخول', register: 'إنشاء حساب', email: 'البريد الإلكتروني',
+        password: 'كلمة المرور', fullname: 'الاسم الكامل', phone: 'الهاتف',
+        wilaya: 'الولاية', address: 'العنوان', size: 'المقاس', color: 'اللون',
+        quantity: 'الكمية', order: 'اطلب الآن', submit: 'إرسال',
+        featured: 'منتجات مميزة', new: 'وصل حديثاً', search: 'ابحث...', all: 'الكل'
+    },
+    en: {
+        home: 'Home', products: 'Products', clothes: 'Clothes', shoes: 'Shoes',
+        admin: 'Admin', account: 'Account', logout: 'Logout',
+        login: 'Login', register: 'Register', email: 'Email',
+        password: 'Password', fullname: 'Full Name', phone: 'Phone',
+        wilaya: 'Wilaya', address: 'Address', size: 'Size', color: 'Color',
+        quantity: 'Quantity', order: 'Order Now', submit: 'Submit',
+        featured: 'Featured', new: 'New Arrivals', search: 'Search...', all: 'All'
+    },
+    fr: {
+        home: 'Accueil', products: 'Produits', clothes: 'Vêtements', shoes: 'Chaussures',
+        admin: 'Admin', account: 'Compte', logout: 'Déconnexion',
+        login: 'Connexion', register: 'S\'inscrire', email: 'Email',
+        password: 'Mot de passe', fullname: 'Nom', phone: 'Téléphone',
+        wilaya: 'Wilaya', address: 'Adresse', size: 'Taille', color: 'Couleur',
+        quantity: 'Quantité', order: 'Commander', submit: 'Envoyer',
+        featured: 'Vedettes', new: 'Nouveautés', search: 'Rechercher...', all: 'Tous'
+    }
+};
+
+function t(key) {
+    return translations[currentLang][key] || translations.ar[key] || key;
+}
+
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast');
+    const toast = document.createElement('div');
+    toast.className = `toast-msg ${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function showLoading() {
+    document.getElementById('loading').classList.remove('hide');
+}
+
+function hideLoading() {
+    setTimeout(() => document.getElementById('loading').classList.add('hide'), 500);
+}
+
+function switchLang(lang) {
+    currentLang = lang;
+    localStorage.setItem('lang', lang);
+    if (lang === 'ar') {
+        document.body.classList.remove('en', 'fr');
+        document.documentElement.dir = 'rtl';
+    } else {
+        document.body.classList.add(lang);
+        document.documentElement.dir = 'ltr';
+    }
+    document.documentElement.lang = lang;
+    renderPage();
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.textContent.toLowerCase() === lang) btn.classList.add('active');
+    });
+}
+
+function toggleMobileMenu() {
+    document.getElementById('navLinks').classList.toggle('open');
+}
+
+function navigateTo(page, param = null) {
+    currentPage = page;
+    if (param) localStorage.setItem('pageParam', param);
+    else localStorage.removeItem('pageParam');
+    document.getElementById('navLinks')?.classList.remove('open');
+    renderPage();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function updateNavUI() {
+    const adminLink = document.getElementById('adminLink');
+    const accountLink = document.getElementById('accountLink');
+    const logoutLink = document.getElementById('logoutLink');
+    if (currentUser) {
+        accountLink.classList.add('hidden');
+        logoutLink.classList.remove('hidden');
+        if (currentUser.Role === 'admin') adminLink.classList.remove('hidden');
+        else adminLink.classList.add('hidden');
+    } else {
+        accountLink.classList.remove('hidden');
+        logoutLink.classList.add('hidden');
+        adminLink.classList.add('hidden');
+    }
+}
+
+function closeModal() {
+    document.getElementById('modalContainer').innerHTML = '';
+}
+
+// =============================================
+// API CALLS
+// =============================================
+async function apiCall(action, data = {}) {
+    try {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, ...data })
+        });
+        const result = await response.json();
+        console.log(`API [${action}]:`, result);
+        return result;
+    } catch (error) {
+        console.error('API Error:', error);
+        return { success: false, error: 'فشل الاتصال بالخادم: ' + error.message };
+    }
+}
+
+// =============================================
+// AUTHENTICATION
+// =============================================
+function openAuthModal(mode = 'login') {
+    const container = document.getElementById('modalContainer');
+    container.innerHTML = `
+        <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+            <div class="modal-content">
+                <button class="modal-close" onclick="closeModal()">✕</button>
+                <h2>${mode === 'login' ? t('login') : t('register')}</h2>
+                <form id="authForm" onsubmit="handleAuth(event, '${mode}')">
+                    ${mode === 'register' ? `<div class="form-group"><label>${t('fullname')}</label><input type="text" id="fullName" required></div>` : ''}
+                    <div class="form-group"><label>${t('email')}</label><input type="email" id="email" required></div>
+                    <div class="form-group"><label>${t('password')}</label><input type="password" id="password" required minlength="6"></div>
+                    <button type="submit" class="btn btn-primary" style="width:100%">${mode === 'login' ? t('login') : t('register')}</button>
+                </form>
+                <p class="text-center mt-2">
+                    <a href="#" onclick="openAuthModal('${mode === 'login' ? 'register' : 'login'}')">
+                        ${mode === 'login' ? t('register') : t('login')}
+                    </a>
+                </p>
+            </div>
+        </div>
+    `;
+}
+
+async function handleAuth(event, mode) {
+    event.preventDefault();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    showLoading();
+    if (mode === 'register') {
+        const fullName = document.getElementById('fullName').value.trim();
+        const result = await apiCall('register', { email, password, fullName });
+        hideLoading();
+        if (result.success) {
+            showToast('تم إنشاء الحساب بنجاح! يمكنك تسجيل الدخول الآن', 'success');
+            closeModal();
+            openAuthModal('login');
+        } else {
+            showToast(result.error || 'فشل إنشاء الحساب', 'error');
+        }
+    } else {
+        const result = await apiCall('login', { email, password });
+        hideLoading();
+        if (result.success && result.data) {
+            currentUser = result.data;
+            localStorage.setItem('user', JSON.stringify(currentUser));
+            showToast(`مرحباً ${currentUser.FullName || email}!`, 'success');
+            closeModal();
+            updateNavUI();
+            if (currentUser.Role === 'admin') navigateTo('admin');
+            else navigateTo('home');
+        } else {
+            showToast('البريد الإلكتروني أو كلمة المرور غير صحيحة', 'error');
+        }
+    }
+}
+
+function logout() {
+    currentUser = null;
+    localStorage.removeItem('user');
+    updateNavUI();
+    navigateTo('home');
+    showToast('تم تسجيل الخروج بنجاح', 'info');
+}
+
+// =============================================
+// ORDER
+// =============================================
+function openOrderModal(product) {
+    const sizes = product.Sizes ? product.Sizes.split(',') : [];
+    const colors = product.Colors ? product.Colors.split(',') : [];
+    const container = document.getElementById('modalContainer');
+    container.innerHTML = `
+        <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+            <div class="modal-content">
+                <button class="modal-close" onclick="closeModal()">✕</button>
+                <h2>${t('order')}</h2>
+                <form id="orderForm" onsubmit="submitOrder(event, '${product.ProductID}')">
+                    <div class="form-group"><label>${t('fullname')}</label><input type="text" id="orderName" required value="${currentUser?.FullName || ''}"></div>
+                    <div class="form-group"><label>${t('phone')}</label><input type="tel" id="orderPhone" required placeholder="+213XXXXXXXXX"></div>
+                    <div class="form-group"><label>${t('wilaya')}</label><select id="orderWilaya" required>${wilayas.map(w => `<option>${w}</option>`).join('')}</select></div>
+                    <div class="form-group"><label>${t('address')}</label><textarea id="orderAddress" required></textarea></div>
+                    <div class="form-group"><label>${t('size')}</label><select id="orderSize" required>${sizes.map(s => `<option>${s.trim()}</option>`).join('')}</select></div>
+                    <div class="form-group"><label>${t('color')}</label><select id="orderColor" required>${colors.map(c => `<option>${c.trim()}</option>`).join('')}</select></div>
+                    <div class="form-group"><label>${t('quantity')}</label><input type="number" id="orderQty" value="1" min="1" max="${product.Stock || 10}"></div>
+                    <button type="submit" class="btn btn-primary" style="width:100%">${t('submit')}</button>
+                </form>
+            </div>
+        </div>
+    `;
+}
+
+async function submitOrder(event, productId) {
+    event.preventDefault();
+    if (!currentUser) {
+        showToast('الرجاء تسجيل الدخول أولاً', 'error');
+        closeModal();
+        openAuthModal('login');
+        return;
+    }
+    const product = allProducts.find(p => p.ProductID === productId);
+    if (!product) return;
+    const orderData = {
+        productId: product.ProductID,
+        productName: product.Name,
+        productType: product.Type,
+        productImage: product.MainImage || (product.Images ? product.Images.split(',')[0] : ''),
+        size: document.getElementById('orderSize').value,
+        color: document.getElementById('orderColor').value,
+        quantity: parseInt(document.getElementById('orderQty').value),
+        fullName: document.getElementById('orderName').value,
+        phone: document.getElementById('orderPhone').value,
+        wilaya: document.getElementById('orderWilaya').value,
+        address: document.getElementById('orderAddress').value,
+        shippingCompany: 'Yalidine',
+        price: parseInt(product.NewPrice) * parseInt(document.getElementById('orderQty').value),
+        userEmail: currentUser.Email
+    };
+    showLoading();
+    const result = await apiCall('createOrder', orderData);
+    hideLoading();
+    if (result.success) {
+        showToast('تم إرسال الطلب بنجاح!', 'success');
+        closeModal();
+    } else {
+        showToast(result.error || 'فشل إرسال الطلب', 'error');
+    }
+}
+
+// =============================================
+// PRODUCT CARD
+// =============================================
+function toggleFavorite(productId) {
+    if (!currentUser) {
+        openAuthModal('login');
+        return;
+    }
+    const index = favorites.indexOf(productId);
+    if (index > -1) favorites.splice(index, 1);
+    else favorites.push(productId);
+    localStorage.setItem('favorites', JSON.stringify(favorites));
+    renderPage();
+}
+
+function productCard(product) {
+    const isLiked = favorites.includes(product.ProductID);
+    const hasSale = product.OldPrice && parseInt(product.OldPrice) > parseInt(product.NewPrice);
+    const outOfStock = parseInt(product.Stock) <= 0;
+    const imgUrl = product.MainImage || (product.Images ? product.Images.split(',')[0] : 'https://picsum.photos/400/500');
+    return `
+        <div class="product-card" onclick="viewProduct('${product.ProductID}')">
+            <div class="product-img">
+                <img src="${imgUrl}" alt="${product.Name}" onerror="this.src='https://picsum.photos/400/500'">
+                <button class="fav-icon ${isLiked ? 'liked' : ''}" onclick="event.stopPropagation(); toggleFavorite('${product.ProductID}')">${isLiked ? '❤️' : '🤍'}</button>
+                ${outOfStock ? '<div style="position:absolute;bottom:10px;right:10px;background:red;color:white;padding:4px 12px;border-radius:20px;font-size:12px;">نفد</div>' : ''}
+            </div>
+            <div class="product-info">
+                <div class="product-name">${product.Name}</div>
+                <div>${hasSale ? `<span class="product-old">${parseInt(product.OldPrice).toLocaleString()} DZD</span>` : ''}<span class="product-price">${parseInt(product.NewPrice).toLocaleString()} DZD</span></div>
+            </div>
+        </div>
+    `;
+}
+
+function viewProduct(productId) {
+    localStorage.setItem('viewProductId', productId);
+    navigateTo('product');
+}
+
+// =============================================
+// RENDER FUNCTIONS
+// =============================================
+async function renderPage() {
+    const main = document.getElementById('mainContent');
+    updateNavUI();
+    showLoading();
+    const productsResult = await apiCall('getAllProducts');
+    if (productsResult.success) allProducts = productsResult.data;
+    const settingsResult = await apiCall('getSettings');
+    const settings = settingsResult.success ? settingsResult.data : {};
+    hideLoading();
+    switch (currentPage) {
+        case 'home':
+            renderHome(main, settings);
+            break;
+        case 'products':
+            renderProducts(main);
+            break;
+        case 'product':
+            renderProductDetail(main);
+            break;
+        case 'admin':
+            if (!currentUser || currentUser.Role !== 'admin') {
+                main.innerHTML = `<div class="container section text-center"><h2>غير مصرح لك بالدخول</h2></div>`;
+                return;
+            }
+            renderAdmin(main);
+            break;
+        default:
+            renderHome(main, settings);
+    }
+    if (settings.StorePhone) document.getElementById('footerPhone').textContent = settings.StorePhone;
+    if (settings.StoreEmail) document.getElementById('footerEmail').textContent = settings.StoreEmail;
+}
+
+function renderHome(main, settings) {
+    const featured = allProducts.filter(p => p.Featured === 'true' && p.Visible === 'true').slice(0, 4);
+    const newProducts = allProducts.filter(p => p.Visible === 'true').sort((a, b) => new Date(b.CreatedAt) - new Date(a.CreatedAt)).slice(0, 4);
+    main.innerHTML = `
+        <div class="hero">
+            <div>
+                <h1>${settings.HeroTitle || 'أناقة لا تنتهي'}</h1>
+                <p>${settings.HeroSubtitle || 'اكتشف أحدث صيحات الموضة'}</p>
+                <button class="hero-btn" onclick="navigateTo('products')">${t('products')}</button>
+            </div>
+        </div>
+        <div class="container">
+            <section class="section">
+                <h2 class="section-title">${t('featured')}</h2>
+                <div class="products-grid">${featured.map(p => productCard(p)).join('')}</div>
+            </section>
+            <section class="section">
+                <h2 class="section-title">${t('new')}</h2>
+                <div class="products-grid">${newProducts.map(p => productCard(p)).join('')}</div>
+            </section>
+        </div>
+    `;
+}
+
+function renderProducts(main) {
+    const param = localStorage.getItem('pageParam') || '';
+    let filtered = [...allProducts];
+    if (param && param !== 'all') filtered = filtered.filter(p => p.Type === param);
+    if (!currentUser || currentUser.Role !== 'admin') filtered = filtered.filter(p => p.Visible === 'true');
+    main.innerHTML = `
+        <div class="container section">
+            <h2 class="section-title">${t('products')}</h2>
+            <div class="filters-bar">
+                <input type="text" id="searchInput" placeholder="${t('search')}" oninput="filterProducts()">
+                <select id="typeFilter" onchange="filterProducts()">
+                    <option value="all">${t('all')}</option>
+                    <option value="Clothes" ${param === 'Clothes' ? 'selected' : ''}>${t('clothes')}</option>
+                    <option value="Shoes" ${param === 'Shoes' ? 'selected' : ''}>${t('shoes')}</option>
+                </select>
+            </div>
+            <div class="products-grid" id="productsGrid">
+                ${filtered.length ? filtered.map(p => productCard(p)).join('') : '<p>لا توجد منتجات</p>'}
+            </div>
+        </div>
+    `;
+    window.filterProducts = function() {
+        const search = document.getElementById('searchInput')?.value.toLowerCase() || '';
+        const type = document.getElementById('typeFilter')?.value || 'all';
+        let f = [...allProducts];
+        if (!currentUser || currentUser.Role !== 'admin') f = f.filter(p => p.Visible === 'true');
+        if (type !== 'all') f = f.filter(p => p.Type === type);
+        if (search) f = f.filter(p => p.Name.toLowerCase().includes(search));
+        const grid = document.getElementById('productsGrid');
+        if (grid) grid.innerHTML = f.length ? f.map(p => productCard(p)).join('') : '<p>لا توجد منتجات</p>';
+    };
+}
+
+async function renderProductDetail(main) {
+    const productId = localStorage.getItem('viewProductId');
+    const product = allProducts.find(p => p.ProductID === productId);
+    if (!product) {
+        main.innerHTML = `<div class="container section"><h2>المنتج غير موجود</h2></div>`;
+        return;
+    }
+    const images = product.Images ? product.Images.split(',') : [product.MainImage || 'https://picsum.photos/600/800'];
+    const sizes = product.Sizes ? product.Sizes.split(',') : [];
+    const colors = product.Colors ? product.Colors.split(',') : [];
+    const hasSale = product.OldPrice && parseInt(product.OldPrice) > parseInt(product.NewPrice);
+    const isLiked = favorites.includes(product.ProductID);
+    const outOfStock = parseInt(product.Stock) <= 0;
+    const reviewsResult = await apiCall('getReviews', { productId });
+    const reviews = reviewsResult.success ? reviewsResult.data : [];
+    const avgRating = reviews.length ? (reviews.reduce((s, r) => s + parseInt(r.Rating), 0) / reviews.length).toFixed(1) : '0';
+    main.innerHTML = `
+        <div class="container">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:50px;padding:40px 0;">
+                <div>
+                    <div style="aspect-ratio:3/4;background:var(--gray-100);border-radius:20px;overflow:hidden;">
+                        <img src="${images[0]}" id="mainImg" style="width:100%;height:100%;object-fit:cover;">
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:12px;">
+                        ${images.map((img, i) => `
+                            <div style="width:70px;height:90px;border-radius:10px;overflow:hidden;cursor:pointer;border:2px solid ${i === 0 ? 'black' : 'transparent'}" onclick="document.getElementById('mainImg').src='${img}';document.querySelectorAll('.gallery-thumb').forEach((t,j)=>t.style.borderColor=j===${i}?'black':'transparent')" class="gallery-thumb">
+                                <img src="${img}" style="width:100%;height:100%;object-fit:cover;">
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                <div>
+                    <h1 style="font-size:2rem">${product.Name}</h1>
+                    <p style="color:var(--gray-600);margin:16px 0">${product.Description}</p>
+                    <div style="margin-bottom:16px;">
+                        ${hasSale ? `<span style="text-decoration:line-through;color:var(--gray-400);margin-left:12px;">${parseInt(product.OldPrice).toLocaleString()} DZD</span>` : ''}
+                        <span style="font-size:1.8rem;font-weight:800;">${parseInt(product.NewPrice).toLocaleString()} DZD</span>
+                    </div>
+                    <div style="margin-bottom:16px;">
+                        <span style="color:var(--gold);">${'★'.repeat(Math.round(avgRating))}${'☆'.repeat(5 - Math.round(avgRating))}</span>
+                        <span style="color:var(--gray-500);"> (${avgRating} - ${reviews.length} تقييم)</span>
+                    </div>
+                    <div class="flex" style="margin-bottom:20px;">
+                        <div>
+                            <label style="font-weight:600;">${t('size')}</label>
+                            <select id="detailSize" style="padding:8px;border-radius:8px;border:1px solid var(--gray-300);">
+                                ${sizes.map(s => `<option>${s.trim()}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex">
+                        <button class="btn btn-primary" onclick="openOrderModal(allProducts.find(p=>p.ProductID==='${product.ProductID}'))" ${outOfStock ? 'disabled' : ''}>${outOfStock ? 'نفد المخزون' : t('order')}</button>
+                        <button class="btn btn-outline" onclick="toggleFavorite('${product.ProductID}');renderPage()">${isLiked ? '❤️' : '🤍'} مفضلة</button>
+                    </div>
+                </div>
+            </div>
+            <section class="section">
+                <h3 style="font-size:1.5rem;margin-bottom:20px;">التقييمات (${reviews.length})</h3>
+                ${reviews.map(r => `
+                    <div style="background:var(--gray-100);padding:16px;border-radius:12px;margin-bottom:12px;">
+                        <strong>${r.UserName}</strong>
+                        <span style="color:var(--gold);margin:0 8px;">${'★'.repeat(parseInt(r.Rating))}${'☆'.repeat(5 - parseInt(r.Rating))}</span>
+                        <p style="margin-top:8px;">${r.Comment}</p>
+                        <small style="color:var(--gray-400);">${r.CreatedAt}</small>
+                    </div>
+                `).join('')}
+                ${currentUser ? `<button class="btn btn-outline" onclick="openReviewModal('${product.ProductID}','${product.Name}')">أضف تقييماً</button>` : '<button class="btn btn-outline" onclick="openAuthModal()">سجل دخول لتضيف تقييماً</button>'}
+            </section>
+        </div>
+    `;
+}
+
+function openReviewModal(productId, productName) {
+    const container = document.getElementById('modalContainer');
+    container.innerHTML = `
+        <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+            <div class="modal-content">
+                <button class="modal-close" onclick="closeModal()">✕</button>
+                <h2>${productName}</h2>
+                <form onsubmit="submitReview(event, '${productId}', '${productName}')">
+                    <div class="form-group">
+                        <label>التقييم (1-5)</label>
+                        <select id="rating" required>
+                            <option value="5">★★★★★</option>
+                            <option value="4">★★★★☆</option>
+                            <option value="3">★★★☆☆</option>
+                            <option value="2">★★☆☆☆</option>
+                            <option value="1">★☆☆☆☆</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>تعليقك</label>
+                        <textarea id="comment" required rows="3"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width:100%">إرسال التقييم</button>
+                </form>
+            </div>
+        </div>
+    `;
+}
+
+async function submitReview(event, productId, productName) {
+    event.preventDefault();
+    if (!currentUser) {
+        showToast('الرجاء تسجيل الدخول أولاً', 'error');
+        closeModal();
+        return;
+    }
+    const rating = document.getElementById('rating').value;
+    const comment = document.getElementById('comment').value;
+    showLoading();
+    const result = await apiCall('addReview', {
+        productId, productName, userEmail: currentUser.Email,
+        userName: currentUser.FullName || currentUser.Email,
+        rating, comment
+    });
+    hideLoading();
+    if (result.success) {
+        showToast('تم إضافة التقييم بنجاح', 'success');
+        closeModal();
+        renderPage();
+    } else {
+        showToast('فشل إضافة التقييم', 'error');
+    }
+}
+
+async function renderAdmin(main) {
+    const usersResult = await apiCall('getUsers');
+    const ordersResult = await apiCall('getOrders');
+    const users = usersResult.success ? usersResult.data : [];
+    const orders = ordersResult.success ? ordersResult.data : [];
+    const totalSales = orders.reduce((sum, o) => sum + (parseInt(o.Price) || 0), 0);
+    const outOfStock = allProducts.filter(p => parseInt(p.Stock) <= 0).length;
+    main.innerHTML = `
+        <div class="container section">
+            <div class="admin-layout">
+                <div class="admin-sidebar">
+                    <a class="active" onclick="renderAdminTab('dashboard')">📊 لوحة التحكم</a>
+                    <a onclick="renderAdminTab('products')">📦 المنتجات</a>
+                    <a onclick="renderAdminTab('orders')">📋 الطلبات</a>
+                    <a onclick="renderAdminTab('users')">👥 المستخدمين</a>
+                </div>
+                <div class="admin-main" id="adminContent">
+                    <div class="stats-grid">
+                        <div class="stat-card"><div class="stat-number">${users.length}</div><div>المستخدمين</div></div>
+                        <div class="stat-card"><div class="stat-number">${allProducts.length}</div><div>المنتجات</div></div>
+                        <div class="stat-card"><div class="stat-number">${orders.length}</div><div>الطلبات</div></div>
+                        <div class="stat-card"><div class="stat-number">${orders.filter(o => o.Status === 'Pending').length}</div><div>جديدة</div></div>
+                        <div class="stat-card"><div class="stat-number">${outOfStock}</div><div>نافدة</div></div>
+                        <div class="stat-card"><div class="stat-number">${parseInt(totalSales).toLocaleString()}</div><div>المبيعات DZD</div></div>
+                    </div>
+                    <h3>آخر الطلبات</h3>
+                    <div style="overflow-x:auto;">
+                        <table>
+                            <thead>
+                                <tr><th>رقم الطلب</th><th>المنتج</th><th>العميل</th><th>السعر</th><th>الحالة</th></tr>
+                            </thead>
+                            <tbody>
+                                ${orders.slice(0, 5).map(o => `
+                                    <tr><td>${o.OrderID}</td><td>${o.ProductName}</td><td>${o.FullName}</td><td>${parseInt(o.Price).toLocaleString()} DZD</td><td>${o.Status}</td></tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    window.renderAdminTab = async function(tab) {
+        const content = document.getElementById('adminContent');
+        if (!content) return;
+        if (tab === 'products') {
+            content.innerHTML = `
+                <h3>المنتجات</h3>
+                <button class="btn btn-primary" style="padding:8px 16px;margin-bottom:16px;" onclick="addNewProduct()">+ إضافة منتج</button>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead><tr><th>الاسم</th><th>النوع</th><th>السعر</th><th>المخزون</th><th>ظاهر</th><th>إجراءات</th></tr></thead>
+                        <tbody>
+                            ${allProducts.map(p => `
+                                <tr>
+                                    <td>${p.Name}</td>
+                                    <td>${p.Type}</td>
+                                    <td>${parseInt(p.NewPrice).toLocaleString()} DZD</td>
+                                    <td style="color:${parseInt(p.Stock) <= 0 ? 'red' : 'green'}">${p.Stock}</td>
+                                    <td>${p.Visible === 'true' ? '✅' : '❌'}</td>
+                                    <td>
+                                        <button class="btn btn-outline" style="padding:6px 12px" onclick="toggleProductVisibility('${p.ProductID}')">${p.Visible === 'true' ? 'إخفاء' : 'إظهار'}</button>
+                                        <button class="btn btn-outline" style="padding:6px 12px;background:red;color:white" onclick="deleteProductById('${p.ProductID}')">حذف</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } else if (tab === 'orders') {
+            const ordRes = await apiCall('getOrders');
+            const ords = ordRes.success ? ordRes.data : [];
+            content.innerHTML = `
+                <h3>الطلبات</h3>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead><tr><th>رقم الطلب</th><th>المنتج</th><th>العميل</th><th>الهاتف</th><th>السعر</th><th>الحالة</th></tr></thead>
+                        <tbody>
+                            ${ords.map(o => `
+                                <tr><td>${o.OrderID}</td><td>${o.ProductName}</td><td>${o.FullName}</td><td>${o.Phone}</td><td>${parseInt(o.Price).toLocaleString()} DZD</td><td>${o.Status}</td></tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } else if (tab === 'users') {
+            const usrRes = await apiCall('getUsers');
+            const usrs = usrRes.success ? usrRes.data : [];
+            content.innerHTML = `
+                <h3>المستخدمين</h3>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead><tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>الحالة</th></tr></thead>
+                        <tbody>
+                            ${usrs.map(u => `
+                                <tr><td>${u.FullName}</td><td>${u.Email}</td><td>${u.Role}</td><td>${u.Status}</td></tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } else {
+            const usrRes = await apiCall('getUsers');
+            const ordRes = await apiCall('getOrders');
+            const usrs = usrRes.success ? usrRes.data : [];
+            const ords = ordRes.success ? ordRes.data : [];
+            const outSt = allProducts.filter(p => parseInt(p.Stock) <= 0).length;
+            content.innerHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card"><div class="stat-number">${usrs.length}</div><div>المستخدمين</div></div>
+                    <div class="stat-card"><div class="stat-number">${allProducts.length}</div><div>المنتجات</div></div>
+                    <div class="stat-card"><div class="stat-number">${ords.length}</div><div>الطلبات</div></div>
+                    <div class="stat-card"><div class="stat-number">${ords.filter(o => o.Status === 'Pending').length}</div><div>جديدة</div></div>
+                    <div class="stat-card"><div class="stat-number">${outSt}</div><div>نافدة</div></div>
+                </div>
+            `;
+        }
+    };
+}
+
+window.toggleProductVisibility = async function(productId) {
+    const product = allProducts.find(p => p.ProductID === productId);
+    if (product) {
+        product.Visible = product.Visible === 'true' ? 'false' : 'true';
+        await apiCall('updateProduct', { productId, Visible: product.Visible });
+        showToast('تم تحديث حالة المنتج', 'success');
+        renderPage();
+    }
+};
+
+window.deleteProductById = async function(productId) {
+    if (confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
+        await apiCall('deleteProduct', { productId });
+        allProducts = allProducts.filter(p => p.ProductID !== productId);
+        showToast('تم حذف المنتج', 'success');
+        renderPage();
+    }
+};
+
+window.addNewProduct = function() {
+    allProducts.unshift({
+        ProductID: 'P' + Date.now(),
+        Name: 'منتج جديد',
+        Type: 'Clothes',
+        Description: 'وصف المنتج',
+        OldPrice: '0',
+        NewPrice: '0',
+        Stock: '10',
+        Sizes: 'S,M,L',
+        Colors: 'أسود,أبيض',
+        Images: 'https://picsum.photos/400/500',
+        MainImage: 'https://picsum.photos/400/500',
+        Visible: 'true',
+        Featured: 'false',
+        BestSeller: 'false',
+        CreatedAt: new Date().toISOString().split('T')[0],
+        UpdatedAt: new Date().toISOString().split('T')[0]
+    });
+    renderPage();
+    showToast('تمت الإضافة، يرجى تعديل البيانات في Google Sheets', 'info');
+};
+
+// =============================================
+// INIT
+// =============================================
+async function init() {
+    showLoading();
+    document.body.className = currentLang === 'ar' ? '' : currentLang;
+    document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.lang = currentLang;
+    const productsResult = await apiCall('getAllProducts');
+    if (productsResult.success) allProducts = productsResult.data;
+    updateNavUI();
+    await renderPage();
+    hideLoading();
+}
+
+init();
